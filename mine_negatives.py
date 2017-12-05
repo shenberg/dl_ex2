@@ -86,6 +86,7 @@ def main():
 
     net = models.Net12FCN()
     net.load_from_net12(args.checkpoint)
+    net.eval()
 
     voc_path = "EX2_data/VOC2007"
     negative_files = q1.get_voc2007_negatives(voc_path)

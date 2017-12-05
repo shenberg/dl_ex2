@@ -9,6 +9,7 @@ class Net12(nn.Module):
 
         # assuming input size of 3x12x12
         self.conv = nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1)
+        self.dropout = nn.Dropout2d(p=0.1, inplace=True)
         # output size 16x12x12
         self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         # output size 16x6x6
@@ -21,6 +22,7 @@ class Net12(nn.Module):
 
     def forward(self, x):
         h = self.conv(x)
+        h = self.dropout(h)
         h = self.pool(h)
         h = self.relu(h)
         # regular fc
