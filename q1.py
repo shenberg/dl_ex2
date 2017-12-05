@@ -97,7 +97,7 @@ def load_12net_data(aflw_path, voc_path):
     # negative dataset is roughly 2900 patches, multiply by 5 to get a more even class balance
     # (~24k images in aflw)
     # since the crop is random on every sample, we are not duplicating negative samples
-    return ConcatDataset([negative_dataset]*5 +[positive_dataset])
+    return ConcatDataset([negative_dataset]*3 + [positive_dataset])
 
 
 def train(net, loss_criterion, dataset, optimizer,
@@ -199,13 +199,9 @@ def test(net, loss_criterion, dataset, subset=None, cuda=False, batch_size=1):
         total_targets += target.size()[0]
 
         # calculate classification accuracy
-        #_, predicted = torch.max(y.data, 1)
         predicted = y.data > 0.5 
         correct += (predicted.float() == target_var.data).sum()
-        #print("pair")
-        #print(y.data, target_var.data)
-        #correct_now = (torch.sign(y.data.view_as(target_var.data)) == target_var.data)
-        #correct += correct_now.sum()
+
     return total_loss / total_targets, correct / total_targets
 
 
@@ -244,10 +240,6 @@ def calc_precision_recall(net, loss_criterion, dataset, subset=None, cuda=False,
         total_targets += target.size()[0]
 
         # calculate classification accuracy
-        #_, predicted = torch.max(y.data, 1)
-
-        predicted = y.data > 0.5 
-
         for i, threshold in enumerate(thresholds):
             true_positive = (y.data > threshold).float() * target_var.data
             false_positive = (y.data > threshold).float() * (1 - target_var.data)
@@ -255,11 +247,7 @@ def calc_precision_recall(net, loss_criterion, dataset, subset=None, cuda=False,
             true_positives[i] += true_positive.sum()
             false_positives[i] += false_positive.sum()
             false_negatives[i] += false_negative.sum()
-        #correct += (predicted.float() == target_var.data).sum()
-        #print("pair")
-        #print(y.data, target_var.data)
-        #correct_now = (torch.sign(y.data.view_as(target_var.data)) == target_var.data)
-        #correct += correct_now.sum()
+
     precisions = [true_positives[i] / (true_positives[i] + false_positives[i]) for i in range(len(thresholds))]
     recalls = [true_positives[i] / (true_positives[i] + false_negatives[i]) for i in range(len(thresholds))]
     return precisions, recalls
@@ -268,7 +256,7 @@ def main():
     main_arg_parser = argparse.ArgumentParser(description="options")
     main_arg_parser.add_argument("-e,","--epochs", type=int, default=400)
     main_arg_parser.add_argument("-lr", "--learning-rate", type=float, default=0.001)
-    main_arg_parser.add_argument("--weight-decay", help="L2 regularization coefficient", type=float, default=0.0001)
+    main_arg_parser.add_argument("--weight-decay", help="L2 regularization coefficient", type=float, default=0)
     main_arg_parser.add_argument("--cuda", action="store_true")
     main_arg_parser.add_argument("--test-set-size", help="proportion of dataset to allocate as test set [0..1]", type=float, default=0.1)
     main_arg_parser.add_argument("--aflw-path", help="path to aflw dir (should contain aflw_{12,14}.t7)", default="EX2_data/aflw")
@@ -277,6 +265,7 @@ def main():
     # submitted convergence plot obtained from visdom using this flag (everything else default)
     main_arg_parser.add_argument("--visdom-plot", action="store_true")
     main_arg_parser.add_argument("--seed", help="random seed for torch", type=int, default=42)
+    main_arg_parser.add_argument("--continue-from", help="checkpoint to continue from")
 
     args = main_arg_parser.parse_args()
 
@@ -308,24 +297,30 @@ def main():
     test_subset = indices_shuffled[first_test_index:]
 
     # train and test
-    #loss_criterion = nn.SoftMarginLoss()
     loss_criterion = nn.BCELoss()
     net = Net12()
+
+    optimizer = Adam(net.parameters(), args.learning_rate, weight_decay=args.weight_decay)
+
+    if args.continue_from:
+        print("continuing from {}".format(args.continue_from))
+        loaded = torch.load(args.continue_from)
+        net.load_state_dict(loaded['state_dict'])
+        optimizer.load_state_dict(loaded['optimizer'])
 
     if cuda:
         net.cuda()
 
-    optimizer = Adam(net.parameters(), args.learning_rate, weight_decay=args.weight_decay)
-
-    train(net, loss_criterion, 
-            dataset, 
-            optimizer, 
-            plotter=plotter, 
-            epochs=args.epochs, 
-            train_subset=train_subset,
-            test_subset=test_subset,
-            batch_size=args.batch_size,
-            cuda=cuda)
+    if args.epochs > 0:
+        train(net, loss_criterion, 
+                dataset, 
+                optimizer, 
+                plotter=plotter, 
+                epochs=args.epochs, 
+                train_subset=train_subset,
+                test_subset=test_subset,
+                batch_size=args.batch_size,
+                cuda=cuda)
 
     precisions, recalls = calc_precision_recall(net, 
         loss_criterion, dataset, test_subset,
@@ -336,7 +331,7 @@ def main():
         viz = visdom.Visdom()
         viz.line(X=np.array(recalls), Y=np.array(precisions), opts=dict(title="Precision-Recall Curve", xlabel="Recall", ylabel="Precision"),env="main")
     print(list(zip(range(len(recalls)),recalls, precisions)))
-    #TODO: allow loading
+
     torch.save({
             'state_dict': net.state_dict(),
             'optimizer' : optimizer.state_dict(),

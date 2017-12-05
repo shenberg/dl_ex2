@@ -148,7 +148,7 @@ def fddb_scan(net, fddb_path, results_path, threshold):
             image_path = os.path.join(fddb_path, 'images', fddb_item + '.jpg')
             image = default_loader(image_path)
             #results = scan_multiple_scales(net, image, [0.4, 0.32, 0.3, 0.25, 0.22, 0.2,0.07,0.09, 0.16, 0.13, 0.1, 0.05])
-            scales = [1.18**(-i) for i in range(1,10)]
+            scales = [1.18**(-i) for i in range(10,20)]
             print(scales)
             results = scan_multiple_scales(net, image, scales)
 
