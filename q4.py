@@ -168,9 +168,7 @@ def to_fddb_ellipses(boxes):
     # stringify
     return ["{} {} {} {} {} {}".format(*row) for row in ellipses]
 
-# TODO
-def fddb_scan(net12, net24, fddb_path, results_path):
-    
+def fddb_scan(net12, net24, fddb_path, results_path, threshold12, threshold24):
     fddb_list = [line.strip() for line in open(os.path.join(fddb_path,'FDDB-folds/FDDB-fold-01.txt'))]
 
     with open(os.path.join(results_path, 'fold-01-out.txt'), 'w') as outfile:
@@ -178,8 +176,7 @@ def fddb_scan(net12, net24, fddb_path, results_path):
             print("Starting with " + fddb_item)
             image_path = os.path.join(fddb_path, 'images', fddb_item + '.jpg')
             image = default_loader(image_path)
-            #results = scan_multiple_scales(net12, net24, image, [0.2, 0.16, 0.13, 0.1])
-            results = scan_multiple_scales(net12, net24, image, [0.4, 0.32, 0.3, 0.25, 0.22, 0.2,0.07,0.09, 0.16, 0.13, 0.1, 0.05])
+            results = scan_multiple_scales(net12, net24, image, utils.scan_scales, threshold12, threshold24)
 
             result_count = sum([len(boxes) for boxes, *_ in results])
             outfile.write(str(fddb_item))
@@ -197,6 +194,9 @@ def main():
     main_arg_parser.add_argument("--net24", help="checkpoint file for 12net (from q3.py) path", default="q3_checkpoint_400_epochs_batchnorm2d_lr_schedule_100_200_300.pth.tar")
     main_arg_parser.add_argument("--fddb-path", help="path to FDDB root dir", default="EX2_data/fddb")
     main_arg_parser.add_argument("--output-path", help="path to write detection output files in (fold-01-out.txt)", default="EX2_data/fddb/out")
+    # determined default by looking at precision-recall curve, choosing the most precision for >99% recall.
+    main_arg_parser.add_argument("-t12", "--threshold12", help="positive cutoff for 12-net", default=0.2, type=float)
+    main_arg_parser.add_argument("-t24", "--threshold24", help="positive cutoff for 24-net", default=0.2, type=float)
     args = main_arg_parser.parse_args()
 
     net12 = models.Net12FCN()
@@ -205,7 +205,7 @@ def main():
     net24 = models.Net24()
     net24.load_state_dict(torch.load(args.net24)['state_dict'])
 
-    fddb_scan(net12, net24, args.fddb_path, args.output_path)
+    fddb_scan(net12, net24, args.fddb_path, args.output_path, args.threshold12, args.threshold24)
 
 
 if __name__=="__main__":
