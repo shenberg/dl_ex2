@@ -107,8 +107,8 @@ def scan_multiple_scales(net12, net24, image, scales, threshold_12=0.1, threshol
                                       transforms.ToTensor()])
         image_tensor = transform(image)
         # scan, nms on results
-        matches = q2.scan(net12, image_tensor, threshold_12).float()
-        #print(double_image_tensor.size(), image_tensor.size(), len(matches))
+        matches = q2.nms(q2.scan(net12, image_tensor, threshold_12).float())
+
         # skip no matches for this scale 
         if len(matches) == 0:
             continue
