@@ -7,9 +7,9 @@ import argparse
 import os
 
 import q1
-import  q2
+import q2
 import models
-
+import utils
 
 def get_image_patches(image_tensor, boxes):
     if len(boxes) == 0:
@@ -64,9 +64,9 @@ def scan_multiple_scales(net, image, scales, threshold=0.1):
 
     return total_matches
 
-def scan_for_negatives(net, negative_path):
+def scan_for_negatives(net, negative_path, threshold):
     image = default_loader(negative_path)
-    results = scan_multiple_scales(net, image, [0.2,0.16, 0.1])
+    results = scan_multiple_scales(net, image, utils.scan_scales, threshold)
     # results is a list of (boxes, matching patches, scale of original image) tuples
     total_patches = []
     total_matches = []
@@ -80,8 +80,11 @@ def main():
 
     main_arg_parser = argparse.ArgumentParser(description="options")
     main_arg_parser.add_argument("--voc-path", help="path to VOC2007 directory (should contain JPEGImages, Imagesets dirs)", default="EX2_data/VOC2007")
-    main_arg_parser.add_argument("--checkpoint", help="checkpoint file (from q1.py) path", default="q2_start_3db_no_regularization.pth.tar")
-    main_arg_parser.add_argument("--output-path", help="path to write detection output files in (fold-01-out.txt)", default="EX2_data/negative_mines")
+    main_arg_parser.add_argument("--checkpoint", help="checkpoint file (from q1.py) path", default="q1_batchnorm2d_400epochs_threshold_0.2.pth.tar")
+    main_arg_parser.add_argument("--output-path", help="path to write serialized negative patches sets", default="EX2_data/negative_mines")
+    # determined default by looking at precision-recall curve, choosing the most precision for >99% recall.
+    main_arg_parser.add_argument("-t", "--threshold", help="positive cutoff", default=0.2, type=float)
+
     args = main_arg_parser.parse_args()
 
     net = models.Net12FCN()
@@ -93,7 +96,7 @@ def main():
 
     for negative_file in negative_files:
         print("Scanning " + negative_file)
-        sn, tm = scan_for_negatives(net, negative_file)
+        sn, tm = scan_for_negatives(net, negative_file, args.threshold)
         if not sn:
             print("no negatives, moving on!")
             continue
