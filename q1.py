@@ -254,7 +254,7 @@ def calc_precision_recall(net, loss_criterion, dataset, subset=None, cuda=False,
 
 def main():
     main_arg_parser = argparse.ArgumentParser(description="options")
-    main_arg_parser.add_argument("-e,","--epochs", type=int, default=400)
+    main_arg_parser.add_argument("-e,","--epochs", type=int, default=150)
     main_arg_parser.add_argument("-lr", "--learning-rate", type=float, default=0.001)
     main_arg_parser.add_argument("--weight-decay", help="L2 regularization coefficient", type=float, default=0)
     main_arg_parser.add_argument("--cuda", action="store_true")

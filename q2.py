@@ -126,16 +126,6 @@ def scan_multiple_scales(net, image, scales, threshold):
     return total_matches
 
 
-def to_fddb_ellipses(boxes):
-    centers = (boxes[:,0:2] + boxes[:,2:4]) * 0.5
-    dims = (boxes[:,2:4] - boxes[:,0:2]) * 0.5 # radii so halve
-    axes = dims * torch.Tensor([1.13, 1.18])
-
-    # major axis, minor axis, angle, center x, center y, score
-    ellipses = torch.cat([axes, torch.zeros(boxes.size(0), 1), centers, boxes[:,4]], dim=1)
-    # stringify
-    return ["{} {} {} {} {} {}".format(*row) for row in ellipses]
-
 def fddb_scan(net, fddb_path, results_path, threshold):
     
     fddb_list = [line.strip() for line in open(os.path.join(fddb_path,'FDDB-folds/FDDB-fold-01.txt'))]
@@ -152,8 +142,9 @@ def fddb_scan(net, fddb_path, results_path, threshold):
             outfile.write('\n')
             outfile.write(str(result_count))
             outfile.write('\n')
-            outfile.write("\n".join("\n".join(to_fddb_ellipses(boxes)) for boxes, *_ in results))
+            outfile.write("\n".join("\n".join(utils.to_fddb_ellipses(boxes)) for boxes, *_ in results))
             outfile.write('\n')
+
 
 def main():
     main_arg_parser = argparse.ArgumentParser(description="options")

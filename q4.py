@@ -7,50 +7,50 @@ from torchvision.datasets.folder import default_loader
 from PIL import Image, ImageDraw
 import models
 import q2
+import utils
 
-
-
-def nms(boxes):
-    if len(boxes) == 0:
-        return []
-
-    #xmin, ymin, xmax, ymax, score, sorted descending by score
-    boxes = torch.stack(sorted(boxes, key=lambda x: x[4], reverse=True))
-
-    pick = []
-    x_min = boxes[:,0]
-    y_min = boxes[:,1]
-    x_max = boxes[:,2]
-    y_max = boxes[:,3]
-
-    area = (x_max-x_min)*(y_max-y_min)
-    idxs = torch.arange(0, len(boxes)).long()
-    while len(idxs) > 0:
-        i = idxs[0]
-        pick.append(i)
-        if len(idxs) == 1:
-            break
-        xx1 = torch.max(x_min[i:i+1],x_min[idxs[1:]])
-        yy1 = torch.max(y_min[i:i+1],y_min[idxs[1:]])
-        xx2 = torch.min(x_max[i:i+1],x_max[idxs[1:]])
-        yy2 = torch.min(y_max[i:i+1],y_max[idxs[1:]])
-
-        w = torch.max(xx2-xx1, torch.zeros(1))
-        h = torch.max(yy2-yy1, torch.zeros(1))
-
-        # find relative overlap
-        overlap = (w*h)/(area[idxs[1:]] + area[i] - w*h)
-        no_overlap = overlap < 0.5
-        # convert to indices in the list
-        no_overlap_indexes = no_overlap.nonzero().squeeze() + 1
-
-        if no_overlap_indexes.nelement() == 0: 
-            # all remaining boxes overlap
-            break
-
-        idxs = idxs[no_overlap.nonzero().squeeze() + 1]
-    
-    return torch.stack([boxes[i] for i in pick])
+#TODO: erase after ok run
+#def nms(boxes):
+#    if len(boxes) == 0:
+#        return []
+#
+#    #xmin, ymin, xmax, ymax, score, sorted descending by score
+#    boxes = torch.stack(sorted(boxes, key=lambda x: x[4], reverse=True))
+#
+#    pick = []
+#    x_min = boxes[:,0]
+#    y_min = boxes[:,1]
+#    x_max = boxes[:,2]
+#    y_max = boxes[:,3]
+#
+#    area = (x_max-x_min)*(y_max-y_min)
+#    idxs = torch.arange(0, len(boxes)).long()
+#    while len(idxs) > 0:
+#        i = idxs[0]
+#        pick.append(i)
+#        if len(idxs) == 1:
+#            break
+#        xx1 = torch.max(x_min[i:i+1],x_min[idxs[1:]])
+#        yy1 = torch.max(y_min[i:i+1],y_min[idxs[1:]])
+#        xx2 = torch.min(x_max[i:i+1],x_max[idxs[1:]])
+#        yy2 = torch.min(y_max[i:i+1],y_max[idxs[1:]])
+#
+#        w = torch.max(xx2-xx1, torch.zeros(1))
+#        h = torch.max(yy2-yy1, torch.zeros(1))
+#
+#        # find relative overlap
+#        overlap = (w*h)/(area[idxs[1:]] + area[i] - w*h)
+#        no_overlap = overlap < 0.5
+#        # convert to indices in the list
+#        no_overlap_indexes = no_overlap.nonzero().squeeze() + 1
+#
+#        if no_overlap_indexes.nelement() == 0: 
+#            # all remaining boxes overlap
+#            break
+#
+#        idxs = idxs[no_overlap.nonzero().squeeze() + 1]
+#    
+#    return torch.stack([boxes[i] for i in pick])
 
 
 def scan(net, image_tensor, threshold=0.1):
@@ -88,9 +88,7 @@ def get_image_patches(image_tensor, boxes):
         patches.append(image_tensor[:, box[1]:box[3], box[0]:box[2]])
     return patches
 
-#TODO: threshold_24!!!
 def scan_multiple_scales(net12, net24, image, scales, threshold_12=0.1, threshold_24=0.1):
-    total_matches = []
     image_size_t = torch.Tensor([image.size[0], image.size[1]])
     # impose additional condition: destination size is even. helps deal with annoying rounding issues
     # that pop up because pytorch has no "SAME" rounding a la tensorflow
@@ -121,7 +119,7 @@ def scan_multiple_scales(net12, net24, image, scales, threshold_12=0.1, threshol
     # apply global nms
     matches = q2.nms(all_boxes)
 
-    filtered_matches = []
+    total_matches = []
     # now run 24net on remaining matches, go by scale
     for scale, dest_size in zip(scales, dest_sizes):
         if any(dest_size < 12):
@@ -144,29 +142,21 @@ def scan_multiple_scales(net12, net24, image, scales, threshold_12=0.1, threshol
         # run 24net on all patches
         scores = net24(Variable(torch.stack(patches)))
 
+        passing = (scores.data.squeeze() > threshold_24).nonzero().squeeze()
+        if len(passing) == 0:
+            continue
+        filtered_matches = torch.index_select(matches_for_scale, 0, passing)
+        filtered_matches = torch.cat([filtered_matches[:,:4], scores.data.squeeze()[passing]], dim=1)
         # now calculate exact scale for W,H since we rounded
-        actual_size = image_tensor.size()
-        # actual size is 3xHxW, reverse order here
-        source_size = torch.Tensor([actual_size[-1], actual_size[-2]])
-        
-        real_scale = image_size_t / source_size
+        real_scale = image_size_t / dest_size
 
         # create [w,h,w,h,1] tensor for scaling the results (x1,y1,x2,y2,score)
         scale_tensor = torch.Tensor([real_scale[1], real_scale[0]]*2 + [1])
 
-        total_matches.append((matches_for_scale[:,:5]*scale_tensor, patches, scores, scale))
+        total_matches.append((filtered_matches*scale_tensor, patches, scores, scale))
 
     return total_matches
 
-
-def to_fddb_ellipses(boxes):
-    centers = (boxes[:,0:2] + boxes[:,2:4]) * 0.5
-    dims = boxes[:,2:4] - boxes[:,0:2]
-    axes = dims * torch.Tensor([1.13, 1.18])
-    # major axis, minor axis, angle, center x, center y, score
-    ellipses = torch.cat([axes, torch.zeros(boxes.size(0), 1), centers, boxes[:,4]], dim=1)
-    # stringify
-    return ["{} {} {} {} {} {}".format(*row) for row in ellipses]
 
 def fddb_scan(net12, net24, fddb_path, results_path, threshold12, threshold24):
     fddb_list = [line.strip() for line in open(os.path.join(fddb_path,'FDDB-folds/FDDB-fold-01.txt'))]
@@ -178,25 +168,24 @@ def fddb_scan(net12, net24, fddb_path, results_path, threshold12, threshold24):
             image = default_loader(image_path)
             results = scan_multiple_scales(net12, net24, image, utils.scan_scales, threshold12, threshold24)
 
+
             result_count = sum([len(boxes) for boxes, *_ in results])
             outfile.write(str(fddb_item))
             outfile.write('\n')
             outfile.write(str(result_count))
             outfile.write('\n')
-            outfile.write("\n".join("\n".join(to_fddb_ellipses(boxes)) for boxes, *_ in results))
+            outfile.write("\n".join("\n".join(utils.to_fddb_ellipses(boxes)) for boxes, *_ in results))
             outfile.write('\n')
-
-threshold = 0.1 # determined by looking at precision-recall curve, choosing the most precision for >99% recall.
 
 def main():
     main_arg_parser = argparse.ArgumentParser(description="options")
-    main_arg_parser.add_argument("--net12", help="checkpoint file for 12net (from q1.py) path", default="q2_start_3db_no_regularization.pth.tar")
-    main_arg_parser.add_argument("--net24", help="checkpoint file for 12net (from q3.py) path", default="q3_checkpoint_400_epochs_batchnorm2d_lr_schedule_100_200_300.pth.tar")
+    main_arg_parser.add_argument("--net12", help="checkpoint file for 12net (from q1.py) path", default="q1_8db_dropout_150_epochs_threshold_0.11.pth.tar")
+    main_arg_parser.add_argument("--net24", help="checkpoint file for 124net (from q3.py) path", default="q3_400epoch_dropout_lr_schedule_100_200_300.pth.tar")
     main_arg_parser.add_argument("--fddb-path", help="path to FDDB root dir", default="EX2_data/fddb")
     main_arg_parser.add_argument("--output-path", help="path to write detection output files in (fold-01-out.txt)", default="EX2_data/fddb/out")
     # determined default by looking at precision-recall curve, choosing the most precision for >99% recall.
-    main_arg_parser.add_argument("-t12", "--threshold12", help="positive cutoff for 12-net", default=0.2, type=float)
-    main_arg_parser.add_argument("-t24", "--threshold24", help="positive cutoff for 24-net", default=0.2, type=float)
+    main_arg_parser.add_argument("-t12", "--threshold12", help="positive cutoff for 12-net", default=0.25, type=float)
+    main_arg_parser.add_argument("-t24", "--threshold24", help="positive cutoff for 24-net", default=0.001, type=float)
     args = main_arg_parser.parse_args()
 
     net12 = models.Net12FCN()

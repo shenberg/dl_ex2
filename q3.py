@@ -11,7 +11,6 @@ import numpy as np
 import torchfile
 
 from torchvision import datasets
-from torchvision import transforms
 # for image file loading
 from torchvision.datasets.folder import default_loader, is_image_file
 
@@ -19,22 +18,27 @@ import argparse
 import os
 import glob
 
-# thin wrapper around visdom
 import utils
 
 from models import Net24
 
 import q1
 
-def load_negative_patches(negatives_path, transform=None):
-    negatives_files = glob.glob(os.path.join(negatives_path, '*.pth'))
-    datasets = []
-    for path in negatives_files:
-        samples = torch.load(path)
-        labels = torch.zeros(1).expand(samples.size(0))
-        dataset = TensorDataset(samples, labels)
-        datasets.append(dataset)
-    return ConcatDataset(datasets)
+#TODO: run for more time with full dataset
+#def load_negative_patches(negatives_path):
+#    negatives_files = glob.glob(os.path.join(negatives_path, '*.pth'))
+#    datasets = []
+#    for path in negatives_files:
+#        samples = torch.load(path)
+#        labels = torch.zeros(1).expand(samples.size(0))
+#        dataset = TensorDataset(samples, labels)
+#        datasets.append(dataset)
+#    return ConcatDataset(datasets)
+
+def load_negative_patches(negatives_path):
+    samples = torch.load(negatives_path)
+    labels = torch.zeros(1).expand(samples.size(0))
+    return TensorDataset(samples, labels)
 
 
 def load_24net_data(aflw_path, negatives_path):
@@ -165,7 +169,7 @@ def calc_precision_recall(net, loss_criterion, dataset, subset=None, cuda=False,
     total_loss = 0
     total_targets = 0
     correct = 0
-    threshold_count = 100
+    threshold_count = 1000
     thresholds = [i/threshold_count for i in range(threshold_count)]
     true_positives = [0]*threshold_count
     false_negatives = [0]*threshold_count
@@ -200,11 +204,11 @@ def main():
     main_arg_parser = argparse.ArgumentParser(description="options")
     main_arg_parser.add_argument("-e,","--epochs", type=int, default=400)
     main_arg_parser.add_argument("-lr", "--learning-rate", type=float, default=0.001)
-    main_arg_parser.add_argument("--weight-decay", help="L2 regularization coefficient", type=float, default=0.0005)
+    main_arg_parser.add_argument("--weight-decay", help="L2 regularization coefficient", type=float, default=0)
     main_arg_parser.add_argument("--cuda", action="store_true")
     main_arg_parser.add_argument("--test-set-size", help="proportion of dataset to allocate as test set [0..1]", type=float, default=0.1)
     main_arg_parser.add_argument("--aflw-path", help="path to aflw dir (should contain aflw_{12,14}.t7)", default="EX2_data/aflw")
-    main_arg_parser.add_argument("--negatives-path", help="path to VOC2007 mined negatives", default="EX2_data/negative_mines/")
+    main_arg_parser.add_argument("--negatives-path", help="path to VOC2007 mined negatives", default="EX2_data/negative_mines_subset.pth")
     main_arg_parser.add_argument("--batch-size", type=int, default=64)
     # submitted convergence plot obtained from visdom using this flag (everything else default)
     main_arg_parser.add_argument("--visdom-plot", action="store_true")
@@ -266,7 +270,14 @@ def main():
         import visdom
         viz = visdom.Visdom()
         viz.line(X=np.array(recalls), Y=np.array(precisions), opts=dict(title="Precision-Recall Curve", xlabel="Recall", ylabel="Precision"),env="main")
-    print(list(zip(range(len(recalls)),recalls, precisions)))
+    
+    # find first threshold below 99% recall
+    for idx in range(len(recalls)):
+        if recalls[idx]<0.99: break
+
+    best_index = idx - 1 # one before we dropped below 99%
+    print("threshold {} to get recall >99% ({}). Resulting precision {}".format(
+                best_index/len(recalls), recalls[best_index], precisions[best_index]))
     
     torch.save({
             'state_dict': net.state_dict(),
