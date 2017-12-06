@@ -145,13 +145,8 @@ def test(net, loss_criterion, dataset, subset=None, cuda=False, batch_size=1):
         total_targets += target.size()[0]
 
         # calculate classification accuracy
-        #_, predicted = torch.max(y.data, 1)
         predicted = y.data > 0.5 
         correct += (predicted.float() == target_var.data).sum()
-        #print("pair")
-        #print(y.data, target_var.data)
-        #correct_now = (torch.sign(y.data.view_as(target_var.data)) == target_var.data)
-        #correct += correct_now.sum()
     return total_loss / total_targets, correct / total_targets
 
 
@@ -190,10 +185,6 @@ def calc_precision_recall(net, loss_criterion, dataset, subset=None, cuda=False,
         total_targets += target.size()[0]
 
         # calculate classification accuracy
-        #_, predicted = torch.max(y.data, 1)
-
-        predicted = y.data > 0.5 
-
         for i, threshold in enumerate(thresholds):
             true_positive = (y.data > threshold).float() * target_var.data
             false_positive = (y.data > threshold).float() * (1 - target_var.data)
@@ -201,11 +192,6 @@ def calc_precision_recall(net, loss_criterion, dataset, subset=None, cuda=False,
             true_positives[i] += true_positive.sum()
             false_positives[i] += false_positive.sum()
             false_negatives[i] += false_negative.sum()
-        #correct += (predicted.float() == target_var.data).sum()
-        #print("pair")
-        #print(y.data, target_var.data)
-        #correct_now = (torch.sign(y.data.view_as(target_var.data)) == target_var.data)
-        #correct += correct_now.sum()
     precisions = [true_positives[i] / (true_positives[i] + false_positives[i]) for i in range(len(thresholds))]
     recalls = [true_positives[i] / (true_positives[i] + false_negatives[i]) for i in range(len(thresholds))]
     return precisions, recalls
@@ -254,7 +240,6 @@ def main():
     test_subset = indices_shuffled[first_test_index:]
 
     # train and test
-    #loss_criterion = nn.SoftMarginLoss()
     loss_criterion = nn.BCELoss()
     net = Net24()
 
@@ -282,7 +267,7 @@ def main():
         viz = visdom.Visdom()
         viz.line(X=np.array(recalls), Y=np.array(precisions), opts=dict(title="Precision-Recall Curve", xlabel="Recall", ylabel="Precision"),env="main")
     print(list(zip(range(len(recalls)),recalls, precisions)))
-    #TODO: allow loading
+    
     torch.save({
             'state_dict': net.state_dict(),
             'optimizer' : optimizer.state_dict(),
