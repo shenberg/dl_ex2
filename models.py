@@ -73,7 +73,7 @@ class Net24(nn.Module):
         self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         # output size 64x12x12
         self.relu = nn.ReLU(inplace=True)
-        self.dropout2 = nn.Dropout2d(p=0.5, inplace=True)
+        self.dropout2 = nn.Dropout2d(p=0.5, inplace=False)
         self.fc = nn.Linear(64*12*12, 128)
         self.output = nn.Linear(128,1)
         self.sigmoid = nn.Sigmoid()

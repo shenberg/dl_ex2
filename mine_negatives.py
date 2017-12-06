@@ -23,6 +23,7 @@ def get_image_patches(image_tensor, boxes):
 
 
 def scan_multiple_scales(net, image, scales, threshold=0.1):
+    #NOTE: different than q2's scan_multiple_scales since it returns double-sized patches
     total_matches = []
     image_size_t = torch.Tensor([image.size[0], image.size[1]])
     # impose additional condition: destination size is even. helps deal with annoying rounding issues
