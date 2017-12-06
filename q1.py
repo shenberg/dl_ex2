@@ -330,7 +330,15 @@ def main():
         import visdom
         viz = visdom.Visdom()
         viz.line(X=np.array(recalls), Y=np.array(precisions), opts=dict(title="Precision-Recall Curve", xlabel="Recall", ylabel="Precision"),env="main")
-    print(list(zip(range(len(recalls)),recalls, precisions)))
+
+    # find first threshold below 99% recall
+    for idx in range(len(recalls)):
+        if recalls[idx]<0.99: break
+
+    best_index = idx - 1 # one before we dropped below 99%
+    print("threshold {} to get recall >99% ({}). Resulting precision {}".format(
+                best_index/len(recalls), recalls[best_index], precision[best_index]))
+
 
     torch.save({
             'state_dict': net.state_dict(),
