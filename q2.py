@@ -148,7 +148,7 @@ def fddb_scan(net, fddb_path, results_path, threshold):
 
 def main():
     main_arg_parser = argparse.ArgumentParser(description="options")
-    main_arg_parser.add_argument("--checkpoint", help="checkpoint file (from q1.py) path", default="q1_batchnorm2d_400epochs_threshold_0.2.pth.tar")
+    main_arg_parser.add_argument("--checkpoint", help="checkpoint file (from q1.py) path", default="q1_8db_dropout_150_epochs_threshold_0.11.pth.tar")
     main_arg_parser.add_argument("--fddb-path", help="path to FDDB root dir", default="EX2_data/fddb")
     main_arg_parser.add_argument("--output-path", help="path to write detection output files in (fold-01-out.txt)", default="EX2_data/fddb/out")
     # determined default by looking at precision-recall curve, choosing the most precision for >99% recall.

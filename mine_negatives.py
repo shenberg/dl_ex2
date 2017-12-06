@@ -81,7 +81,7 @@ def main():
 
     main_arg_parser = argparse.ArgumentParser(description="options")
     main_arg_parser.add_argument("--voc-path", help="path to VOC2007 directory (should contain JPEGImages, Imagesets dirs)", default="EX2_data/VOC2007")
-    main_arg_parser.add_argument("--checkpoint", help="checkpoint file (from q1.py) path", default="q1_batchnorm2d_400epochs_threshold_0.2.pth.tar")
+    main_arg_parser.add_argument("--checkpoint", help="checkpoint file (from q1.py) path", default="q1_8db_dropout_150_epochs_threshold_0.11.pth.tar")
     main_arg_parser.add_argument("--output-path", help="path to write serialized negative patches sets", default="EX2_data/negative_mines")
     # determined default by looking at precision-recall curve, choosing the most precision for >99% recall.
     main_arg_parser.add_argument("-t", "--threshold", help="positive cutoff", default=0.2, type=float)
