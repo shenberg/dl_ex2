@@ -33,4 +33,4 @@ def draw_matches(image, multiscan_matches):
     return im_copy
 
 # set of scales for scanning an image
-scan_scales = [1.18**(-i) for i in range(1,20,2)]
+scan_scales = [1.18**(-i) for i in range(3,20,2)]
