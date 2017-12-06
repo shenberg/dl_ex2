@@ -7,7 +7,7 @@ from torchvision import transforms
 from torchvision.datasets.folder import default_loader
 from PIL import Image, ImageDraw
 import models
-
+import utils
 
 def nms(boxes):
     if len(boxes) == 0:
@@ -88,7 +88,7 @@ def get_image_patches(image_tensor, boxes):
     return patches
 
 
-def scan_multiple_scales(net, image, scales, threshold=0.1):
+def scan_multiple_scales(net, image, scales, threshold):
     total_matches = []
     image_size_t = torch.Tensor([image.size[0], image.size[1]])
     # impose additional condition: destination size is even. helps deal with annoying rounding issues
@@ -105,9 +105,7 @@ def scan_multiple_scales(net, image, scales, threshold=0.1):
         image_tensor = transform(image)
 
         # scan, nms on results
-        #TODO: re nms
-        results_for_scale = scan(net, image_tensor, threshold).float()#nms(scan(net, image_tensor, threshold).float())
-        #results_for_scale = nms(scan(net, image_tensor, threshold).float())
+        results_for_scale = nms(scan(net, image_tensor, threshold).float())
         if len(results_for_scale) == 0:
             print("no results for scale {}".format(scale))
             continue
@@ -147,10 +145,7 @@ def fddb_scan(net, fddb_path, results_path, threshold):
             print("Starting with " + fddb_item)
             image_path = os.path.join(fddb_path, 'images', fddb_item + '.jpg')
             image = default_loader(image_path)
-            #results = scan_multiple_scales(net, image, [0.4, 0.32, 0.3, 0.25, 0.22, 0.2,0.07,0.09, 0.16, 0.13, 0.1, 0.05])
-            scales = [1.18**(-i) for i in range(10,20)]
-            print(scales)
-            results = scan_multiple_scales(net, image, scales)
+            results = scan_multiple_scales(net, image, utils.scan_scales, threshold)
 
             result_count = sum([len(boxes) for boxes, *_ in results])
             outfile.write(str(fddb_item))
@@ -162,11 +157,11 @@ def fddb_scan(net, fddb_path, results_path, threshold):
 
 def main():
     main_arg_parser = argparse.ArgumentParser(description="options")
-    main_arg_parser.add_argument("--checkpoint", help="checkpoint file (from q1.py) path", default="q2_start_3db_no_regularization.pth.tar")
+    main_arg_parser.add_argument("--checkpoint", help="checkpoint file (from q1.py) path", default="q1_batchnorm2d_400epochs_threshold_0.2.pth.tar")
     main_arg_parser.add_argument("--fddb-path", help="path to FDDB root dir", default="EX2_data/fddb")
     main_arg_parser.add_argument("--output-path", help="path to write detection output files in (fold-01-out.txt)", default="EX2_data/fddb/out")
     # determined default by looking at precision-recall curve, choosing the most precision for >99% recall.
-    main_arg_parser.add_argument("-t", "--threshold", help="positive cutoff", default=0.1, type=float)
+    main_arg_parser.add_argument("-t", "--threshold", help="positive cutoff", default=0.2, type=float)
 
     args = main_arg_parser.parse_args()
 
