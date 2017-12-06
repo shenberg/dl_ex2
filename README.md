@@ -2,8 +2,23 @@
 Submitters:
 
 Roee Shenberg, ID 200113041
-You #1
+Omer Goldman, ID 
 You #2
+
+
+Deployment notes:
+
+All the paths necessary can be passed by command-line arguments, however, there are defaults that save all of this. For them to apply, the dir structure is assumed to be:
+unzipped files in ./
+Data folder called ./EX2_data containing:
+./EX2_Data/aflw
+./EX2_Data/fddb
+./EX2_Data/VOC2007
+
+In addition, create the following dirs:
+./EX2_Data/fddb/out
+./EX2_Data/negative_mines
+
 
 
 Question 1
@@ -51,9 +66,20 @@ To thin them out for computational feasibility in the given time constraints, th
 then q3.py was run, training 24-net.
 
 Net24: epoch 399, train loss: 0.0214748, test loss: 0.02837808, test accuracy: 0.99253
+threshold 0.004 to get recall >99% (0.9907407407407407). Resulting precision 0.5721925133689839
 
-The threshold was found to be 0.001.
+A more practical threshold turned out to be 0.001 in practical terms, discussed in q4.
+
+The graphs are at:
+24net_training_loss.png
+24net_precision_recall.png
+
 
 Question 4
 ----------
 
+run q4.py, it's similar to q2, except now the flags are --net12 for 12net checkpoint ,--net24 for 24-net checkpoint, -t12 for threshold for 12-net, -t24 for threshold for 24-net
+
+Attached is DiscROC_24net.png which shows ~82% recall with a total of 21550 FPs, meaning ~65 per image. Note that simply applying global NMS without filtering the boxes using 24-net reduced the ROC to 85%, so the loss from 24-net itself is very small. See DiscROC_global_nms_only.png for the graph.
+
+In addition, the results with the 2nd threshold at 0.004 was also created at DiscROC_24net_threshold__0.004.png, with recall having dropped sharply to ~75% but less than 20 fps per image.
