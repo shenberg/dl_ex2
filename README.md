@@ -2,9 +2,8 @@
 Submitters:
 
 Roee Shenberg, ID 200113041
-Omer Goldman, ID 
-You #2
-
+Omer Goldman, ID 301803862
+Raz Tamir, ID 026548768
 
 Deployment notes:
 
@@ -82,4 +81,4 @@ run q4.py, it's similar to q2, except now the flags are --net12 for 12net checkp
 
 Attached is DiscROC_24net.png which shows ~82% recall with a total of 21550 FPs, meaning ~65 per image. Note that simply applying global NMS without filtering the boxes using 24-net reduced the ROC to 85%, so the loss from 24-net itself is very small. See DiscROC_global_nms_only.png for the graph.
 
-In addition, the results with the 2nd threshold at 0.004 was also created at DiscROC_24net_threshold__0.004.png, with recall having dropped sharply to ~75% but less than 20 fps per image.
+In addition, the results with the 2nd threshold at 0.004 was also created at DiscROC_24net_threshold__0.004.png, with recall having dropped sharply to ~75% but less than 20 false positives per image.
