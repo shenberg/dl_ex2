@@ -97,7 +97,7 @@ def load_12net_data(aflw_path, voc_path):
     # negative dataset is roughly 2900 patches, multiply by 5 to get a more even class balance
     # (~24k images in aflw)
     # since the crop is random on every sample, we are not duplicating negative samples
-    return ConcatDataset([negative_dataset]*3 + [positive_dataset])
+    return ConcatDataset([negative_dataset]*8 + [positive_dataset])
 
 
 def train(net, loss_criterion, dataset, optimizer,
@@ -337,7 +337,7 @@ def main():
 
     best_index = idx - 1 # one before we dropped below 99%
     print("threshold {} to get recall >99% ({}). Resulting precision {}".format(
-                best_index/len(recalls), recalls[best_index], precision[best_index]))
+                best_index/len(recalls), recalls[best_index], precisions[best_index]))
 
 
     torch.save({
