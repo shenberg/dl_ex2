@@ -30,5 +30,7 @@ def draw_matches(image, multiscan_matches):
     for matches, _, _ in multiscan_matches:
         for match in matches:
             draw.rectangle([int(i) for i in match[:4]], outline=(255,0,0,255))
-    return total_matches, im_copy
+    return im_copy
 
+# set of scales for scanning an image
+scan_scales = [1.18**(-i) for i in range(1,20,2)]
