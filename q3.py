@@ -213,6 +213,7 @@ def main():
     # submitted convergence plot obtained from visdom using this flag (everything else default)
     main_arg_parser.add_argument("--visdom-plot", action="store_true")
     main_arg_parser.add_argument("--seed", help="random seed for torch", type=int, default=42)
+    main_arg_parser.add_argument("--continue-from", help="checkpoint to continue from")
 
     args = main_arg_parser.parse_args()
 
@@ -247,20 +248,29 @@ def main():
     loss_criterion = nn.BCELoss()
     net = Net24()
 
-    if cuda:
-        net.cuda()
 
     optimizer = Adam(net.parameters(), args.learning_rate, weight_decay=args.weight_decay)
 
-    train(net, loss_criterion, 
-            dataset, 
-            optimizer, 
-            plotter=plotter, 
-            epochs=args.epochs, 
-            train_subset=train_subset,
-            test_subset=test_subset,
-            batch_size=args.batch_size,
-            cuda=cuda)
+    if args.continue_from:
+        print("continuing from {}".format(args.continue_from))
+        loaded = torch.load(args.continue_from)
+        net.load_state_dict(loaded['state_dict'])
+        optimizer.load_state_dict(loaded['optimizer'])
+
+
+    if cuda:
+        net.cuda()
+
+    if args.epochs > 0:
+        train(net, loss_criterion, 
+                dataset, 
+                optimizer, 
+                plotter=plotter, 
+                epochs=args.epochs, 
+                train_subset=train_subset,
+                test_subset=test_subset,
+                batch_size=args.batch_size,
+                cuda=cuda)
 
     precisions, recalls = calc_precision_recall(net, 
         loss_criterion, dataset, test_subset,
