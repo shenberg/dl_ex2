@@ -99,11 +99,55 @@ def load_12net_data(aflw_path, voc_path):
     # since the crop is random on every sample, we are not duplicating negative samples
     return ConcatDataset([negative_dataset]*8 + [positive_dataset])
 
+"""
+function(state)
+  -- OrthoReg
+  -- params: 
+  --    opt.beta: the regularization stepSize (0.001 is recommended)
+  --    opt.learningRate: the current learning rate
+  --    opt.lambda: the influence radius of the feature weights. Recommended:10.
+  --    opt.epsilon: set to 0.0000001 for numerical stability.
+  local modules = state.network:findModules('cudnn.SpatialConvolution')
+  for i = 1, #modules do --loop through all conv layers
+    local m = modules[i]
+    local filters = m.weight:clone():view(m.weight:size(1),-1)
+    local norms = filters:norm(2,2):squeeze()
+    norms = norms:view(-1,1):expandAs(filters)
+    filters:cdiv(norms + opt.epsilon)
+    local grad = torch.mm(filters, filters:transpose(2,1))
+    grad = torch.exp(grad*opt.lambda)
+    grad = (grad * opt.lambda):cdiv(grad + torch.exp(10)) --squashing
+    grad[torch.eye(grad:size(1)):byte()] = 0 -- zero out diagonal
+    grad = torch.mm(grad, filters)
+    local weight = m.weight:view(m.weight:size(1), -1)
+    local coef = opt.beta*-1
+    coef = coef * opt.learningRate
+    weight:add(grad*coef) -- update weights
+  end
+end
+"""
+import math
+exp10 = math.exp(10)
+def orthoreg_loss(weights, beta=0.01, lamb = 10, epsilon = 0.0000001):
+    # as 2d vectors
+    filters = weights.view(weights.size(0), -1)
+    norms = filters.norm(p=2, dim=1)
+
+    filters = filters / (norms + epsilon).unsqueeze(1)
+    # mm all filters with all filters
+    grad = torch.mm(filters, filters.transpose(1,0))
+    grad = torch.exp(grad*lamb)
+    grad = (grad*lamb).div_(grad + exp10)
+    grad[torch.eye(grad.size(0)).byte()] = 0
+    #grad.mul_(1 - torch.eye(grad.size(0))) # if previous doesn't work due to not being differentiable
+    #grad.sub_(torch.eye(grad.size(0))) # option 2
+    return torch.sum(torch.abs(grad))*beta
+
 
 def train(net, loss_criterion, dataset, optimizer,
       train_subset=None, test_subset=None,
       plotter=None, epochs=1000,
-      cuda=False, batch_size=1):
+      cuda=False, batch_size=1, orthoreg=False):
     # if no subset of dataset specified, train on all of it
     if train_subset is None:
         train_subset = list(range(len(dataset)))
@@ -149,6 +193,15 @@ def train(net, loss_criterion, dataset, optimizer,
             total_loss += loss.data * target.size()[0]
             total_items += target.size()[0] # 1st dim is # of items in the minibatch
 
+            if orthoreg:
+                ortho_loss = Variable(torch.zeros(1))
+                if cuda:
+                    ortho_loss = ortho_loss.cuda()
+                for module in net.modules():
+                    if isinstance(module, (nn.Conv2d, nn.Linear)):
+                        #print(module)
+                        ortho_loss += orthoreg_loss(module.weight)
+                loss += ortho_loss
             # backprop & optimize
             loss.backward()
             optimizer.step()
@@ -257,6 +310,7 @@ def main():
     main_arg_parser.add_argument("-e,","--epochs", type=int, default=150)
     main_arg_parser.add_argument("-lr", "--learning-rate", type=float, default=0.001)
     main_arg_parser.add_argument("--weight-decay", help="L2 regularization coefficient", type=float, default=0)
+    main_arg_parser.add_argument("--orthoreg", action="store_true")
     main_arg_parser.add_argument("--cuda", action="store_true")
     main_arg_parser.add_argument("--test-set-size", help="proportion of dataset to allocate as test set [0..1]", type=float, default=0.1)
     main_arg_parser.add_argument("--aflw-path", help="path to aflw dir (should contain aflw_{12,14}.t7)", default="EX2_data/aflw")
@@ -320,7 +374,8 @@ def main():
                 train_subset=train_subset,
                 test_subset=test_subset,
                 batch_size=args.batch_size,
-                cuda=cuda)
+                cuda=cuda,
+                orthoreg=args.orthoreg)
 
     precisions, recalls = calc_precision_recall(net, 
         loss_criterion, dataset, test_subset,
